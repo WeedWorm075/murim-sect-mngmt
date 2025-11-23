@@ -32,11 +32,22 @@ function App() {
   } = useGameState();
 
   const { cultivate, rest } = useCultivation(gameState, setGameState, useAction, showNotification);
-  const { playerAttack, enemyTurn, startCombat } = useCombat(gameState, setGameState, showNotification, generateEvent, endRun);
   const { upgradeBuilding } = useSectManagement(gameState, setGameState, showNotification);
   const { startRun, generateItem, generateEvent, generateRunEnemy, generateTechnique } = useRunSystem(
     gameState, setGameState, showNotification, useAction
   );
+
+  const endRun = () => {
+    setGameState(prev => ({
+      ...prev,
+      inRun: false,
+      runLevel: 0,
+      currentEvent: null
+    }));
+    showNotification("Run terminé!", "success");
+  };
+  
+  const { playerAttack, enemyTurn, startCombat } = useCombat(gameState, setGameState, showNotification, generateEvent, endRun);
   const { equipItem, usePill } = useInventory(gameState, setGameState, showNotification);
 
   // Location selection handler
@@ -182,16 +193,6 @@ function App() {
       return;
     }
     endRun();
-  };
-
-  const endRun = () => {
-    setGameState(prev => ({
-      ...prev,
-      inRun: false,
-      runLevel: 0,
-      currentEvent: null
-    }));
-    showNotification("Run terminé!", "success");
   };
 
   const closeTechniqueModal = () => {
