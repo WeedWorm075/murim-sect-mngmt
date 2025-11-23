@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGameState } from './hooks/useGameState';
 import { useCultivation } from './hooks/useCultivation';
 import { useCombat } from './hooks/useCombat';
 import { useSectManagement } from './hooks/useSectManagement';
 import { useRunSystem } from './hooks/useRunSystem';
 import { useInventory } from './hooks/useInventory';
+import { useTechniqueLearning } from './hooks/useTechniqueLearning';
+import { useMerchant } from './hooks/useMerchant';
 import { locations } from './data/locations';
 
 // Import Components
@@ -19,6 +21,8 @@ import { CombatModal } from './components/GameScreens/Modals/CombatModal';
 import { RunEventModal } from './components/GameScreens/Modals/RunEventModal';
 import { TechniqueSelectionModal } from './components/GameScreens/Modals/TechniqueSelectionModal';
 import { Notification } from './components/GameScreens/Modals/Notification';
+import { TechniqueLearningModal } from './components/GameScreens/Modals/TechniqueLearningModal';
+import { MerchantModal } from './components/GameScreens/Modals/MerchantModal';
 
 function App() {
   const { 
@@ -49,10 +53,23 @@ function App() {
   
   const { playerAttack, enemyTurn, startCombat } = useCombat(gameState, setGameState, showNotification, generateEvent, endRun);
   const { equipItem, usePill } = useInventory(gameState, setGameState, showNotification);
+  const { practiceTechnique, getLearningProgress, getRequiredProgress } = useTechniqueLearning(gameState, setGameState, showNotification);
+  const { buyItem, sellItem } = useMerchant(gameState, setGameState, showNotification);
+
+  // State for modals
+  const [showLearningModal, setShowLearningModal] = useState(false);
+  const [showMerchantModal, setShowMerchantModal] = useState(false);
 
   // Location selection handler
   const selectLocation = (location: any) => {
     if (gameState.actionsRemaining <= 0) return;
+
+    // Check if location is merchant
+    if (location.type === 'merchant') {
+      setShowMerchantModal(true);
+      useAction();
+      return;
+    }
 
     const enemy = location.enemies[0];
     setGameState(prev => ({
@@ -130,15 +147,16 @@ function App() {
       }
       
     } else if (event.type === 'merchant') {
+      setShowMerchantModal(true);
       setGameState(prev => ({ ...prev, currentEvent: null }));
-      showNotification("Marchand rencontré", "info");
+      
     } else {
       setGameState(prev => ({ ...prev, currentEvent: null }));
       showNotification("Événement étrange...", "info");
     }
     
     // Passer au niveau suivant
-    if (gameState.runLevel < 9) {
+    if (gameState.runLevel < 9 && event.type !== 'merchant') {
       setTimeout(() => {
         const nextLevel = gameState.runLevel + 1;
         const eventType = generateEvent(nextLevel);
@@ -149,6 +167,8 @@ function App() {
         }));
         showNotification(`Niveau ${nextLevel}/9`, "info");
       }, 500);
+    } else if (event.type === 'merchant') {
+      // Merchant handled separately
     } else {
       endRun();
     }
@@ -199,6 +219,49 @@ function App() {
     setGameState(prev => ({ ...prev, showTechniqueSelection: null }));
   };
 
+  // Technique Learning Handlers
+  const handlePracticeTechnique = (method: string, cost: number, progress: number) => {
+    if (!gameState.player.learningTechnique) return;
+    
+    const completed = practiceTechnique(gameState.player.learningTechnique, method, cost, progress);
+    
+    if (completed) {
+      setShowLearningModal(false);
+    }
+  };
+
+  const openLearningModal = () => {
+    if (!gameState.player.learningTechnique) {
+      showNotification("Aucune technique en apprentissage", "error");
+      return;
+    }
+    setShowLearningModal(true);
+  };
+
+  const closeLearningModal = () => {
+    setShowLearningModal(false);
+  };
+
+  const closeMerchantModal = () => {
+    setShowMerchantModal(false);
+    
+    // Continue run after merchant if in run
+    if (gameState.inRun && gameState.runLevel < 9) {
+      setTimeout(() => {
+        const nextLevel = gameState.runLevel + 1;
+        const eventType = generateEvent(nextLevel);
+        setGameState(prev => ({
+          ...prev,
+          runLevel: nextLevel,
+          currentEvent: { type: eventType, level: nextLevel }
+        }));
+        showNotification(`Niveau ${nextLevel}/9`, "info");
+      }, 500);
+    } else if (gameState.inRun) {
+      endRun();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-amber-900 to-red-900 p-4">
       {/* Notification */}
@@ -218,7 +281,8 @@ function App() {
         <Header 
           gameState={gameState} 
           setView={setView} 
-          toggleInventory={toggleInventory} 
+          toggleInventory={toggleInventory}
+          openLearningModal={openLearningModal}
         />
 
         {/* Main Content */}
@@ -238,6 +302,7 @@ function App() {
                   rest={rest}
                   startRun={startRun}
                   setView={setView}
+                  openLearningModal={openLearningModal}
                 />
               )}
               
@@ -270,7 +335,8 @@ function App() {
       {/* Modals */}
       <CombatModal 
         gameState={gameState} 
-        playerAttack={playerAttack} 
+        playerAttack={playerAttack}
+        usePill={usePill}
       />
 
       <RunEventModal 
@@ -286,6 +352,27 @@ function App() {
         replaceTechnique={replaceTechnique}
         closeModal={closeTechniqueModal}
       />
+
+      {/* New Modals */}
+      {showLearningModal && gameState.player.learningTechnique && (
+        <TechniqueLearningModal
+          technique={gameState.player.learningTechnique}
+          currentProgress={getLearningProgress(gameState.player.learningTechnique.name)}
+          requiredProgress={getRequiredProgress(gameState.player.learningTechnique)}
+          playerQi={gameState.player.qi}
+          onPractice={handlePracticeTechnique}
+          onClose={closeLearningModal}
+        />
+      )}
+
+      {showMerchantModal && (
+        <MerchantModal
+          gameState={gameState}
+          onBuyItem={buyItem}
+          onSellItem={sellItem}
+          onClose={closeMerchantModal}
+        />
+      )}
     </div>
   );
 }

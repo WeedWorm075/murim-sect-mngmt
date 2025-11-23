@@ -1,14 +1,17 @@
 import React from 'react';
 import type { Technique } from '../../../types/gameTypes';
+import { CombatConsumables } from './CombatConsumables';
 
 interface CombatModalProps {
   gameState: any;
   playerAttack: (technique: Technique) => void;
+  usePill: (pill: any) => void;
 }
 
 export const CombatModal: React.FC<CombatModalProps> = ({ 
   gameState, 
-  playerAttack 
+  playerAttack,
+  usePill
 }) => {
   if (!gameState.inCombat || !gameState.enemy) return null;
 
@@ -88,6 +91,16 @@ export const CombatModal: React.FC<CombatModalProps> = ({
             </button>
           ))}
         </div>
+
+        {/* Consumables */}
+        <CombatConsumables
+          inventory={gameState.player.inventory}
+          usePill={usePill}
+          playerHealth={gameState.player.health}
+          maxHealth={gameState.player.maxHealth}
+          playerQi={gameState.player.qi}
+          maxQi={gameState.player.maxQi}
+        />
       </div>
     </div>
   );
